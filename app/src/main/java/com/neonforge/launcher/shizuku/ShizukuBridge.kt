@@ -8,12 +8,20 @@ data class CommandResult(val exitCode: Int, val stdout: String, val stderr: Stri
 
 /**
  * Single gateway for ALL privileged operations.
- * Runs commands with shell UID via Shizuku (adb mode on this device).
- * Never guesses: every call returns explicit exit code + streams.
+ * Status/permission methods below are verified public API in dev.rikka.shizuku:api:13.1.5
+ * (compiler-verified: they produce no visibility errors).
+ *
+ * TEMPORARY HONEST STUB for command execution:
+ * Shizuku.newProcess(String[], String[], String) is PRIVATE in 13.1.5
+ * (verified compiler diagnostic: ShizukuBridge.kt:42:45, CI runs #6/#7).
+ * runCommand() therefore returns an explicit FAILURE result until the CI javap
+ * diagnostic reveals the supported public command-execution API.
+ * It never pretends success (Section 5.2 / Section 11 compliance).
  */
 object ShizukuBridge {
 
     const val PERMISSION_REQUEST_CODE = 1001
+    const val EXIT_NOT_INTEGRATED = -4
 
     fun isBinderAlive(): Boolean = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
 
@@ -36,18 +44,10 @@ object ShizukuBridge {
     }
 
     fun runCommand(vararg command: String): CommandResult {
-        if (!isBinderAlive()) {
-            return CommandResult(-1, "", "Shizuku binder not alive (is Shizuku running?)")
-        }
-        val process = runCatching { Shizuku.newProcess(command, null, null) }
-            .getOrElse { return CommandResult(-2, "", "Shizuku.newProcess failed: ${it.message}") }
-        val stdout = runCatching {
-            process.inputStream.bufferedReader().use(BufferedReader::readText)
-        }.getOrDefault("")
-        val stderr = runCatching {
-            process.errorStream.bufferedReader().use(BufferedReader::readText)
-        }.getOrDefault("")
-        val exit = runCatching { process.waitFor() }.getOrElse { -3 }
-        return CommandResult(exit, stdout, stderr)
+        return CommandResult(
+            exitCode = EXIT_NOT_INTEGRATED,
+            stdout = "",
+            stderr = "SHIZUKU_COMMAND_EXECUTION_NOT_INTEGRATED: public command API under verification"
+        )
     }
 }
