@@ -26,16 +26,18 @@ jobs:
       - name: Inspect Shizuku API surface (diagnostic)
         continue-on-error: true
         run: |
-          mkdir -p /tmp/shizuku_api
-          curl -fsSL -o /tmp/shizuku_api/api.aar https://repo1.maven.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar || echo "CURL_FAILED"
-          cd /tmp/shizuku_api
-          unzip -o -q api.aar classes.jar || echo "UNZIP_FAILED"
-          echo "=== public surface: rikka.shizuku.Shizuku ==="
-          javap -classpath classes.jar rikka.shizuku.Shizuku || echo "JAVAP_FAILED"
-          echo "=== public surface: rikka.shizuku.ShizukuRemoteProcess ==="
-          javap -classpath classes.jar rikka.shizuku.ShizukuRemoteProcess || true
-          echo "=== IShizukuService process/shell methods ==="
-          javap -classpath classes.jar rikka.shizuku.IShizukuService | grep -iE "process|shell" || true
+          {
+            mkdir -p /tmp/shizuku_api
+            curl -fsSL -o /tmp/shizuku_api/api.aar https://repo1.maven.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar || echo "CURL_FAILED"
+            cd /tmp/shizuku_api
+            unzip -o -q api.aar classes.jar || echo "UNZIP_FAILED"
+            echo "=== public surface: rikka.shizuku.Shizuku ==="
+            javap -classpath classes.jar rikka.shizuku.Shizuku || echo "JAVAP_FAILED"
+            echo "=== public surface: rikka.shizuku.ShizukuRemoteProcess ==="
+            javap -classpath classes.jar rikka.shizuku.ShizukuRemoteProcess || true
+            echo "=== IShizukuService process/shell methods ==="
+            javap -classpath classes.jar rikka.shizuku.IShizukuService | grep -iE "process|shell" || true
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Run unit tests
         run: gradle --no-daemon --stacktrace testDebugUnitTest

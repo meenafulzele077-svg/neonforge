@@ -24,6 +24,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -98,6 +101,17 @@ fun NfRoot() {
 
     LaunchedEffect(Unit) { refreshShizuku() }
 
+    // Refresh privilege status on every resume: Shizuku may start/stop while we
+    // are in background; the binder state must never be stale on screen.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshShizuku()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     DisposableEffect(Unit) {
         val listener = Shizuku.OnRequestPermissionResultListener { code, _ ->
             if (code == ShizukuBridge.PERMISSION_REQUEST_CODE) refreshShizuku()
@@ -167,6 +181,7 @@ fun NfRoot() {
                         }
                     },
                     onRequestPermission = { ShizukuBridge.requestPermission() },
+                    onRefreshStatus = { refreshShizuku() },
                     onLaunch = {
                         selected?.let { p ->
                             scope.launch {

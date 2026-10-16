@@ -45,6 +45,7 @@ fun DashboardScreen(
     launchError: String?,
     onReadDensity: () -> Unit,
     onRequestPermission: () -> Unit,
+    onRefreshStatus: () -> Unit,
     onLaunch: () -> Unit,
     onRestore: () -> Unit,
     onSelectGame: () -> Unit,
@@ -56,6 +57,12 @@ fun DashboardScreen(
         SessionPhase.APPLYING, SessionPhase.RESTORING -> NfStatusTone.WARNING
         SessionPhase.IN_SESSION -> NfStatusTone.SUCCESS
         SessionPhase.ERROR -> NfStatusTone.ERROR
+    }
+    val guidance = when (shizukuState) {
+        ShizukuUiState.NOT_INSTALLED -> "Install Shizuku from the official source, then return here."
+        ShizukuUiState.NOT_RUNNING -> "Start Shizuku (Wireless debugging) in the Shizuku app, then return here or tap REFRESH STATUS."
+        ShizukuUiState.NOT_AUTHORIZED -> "Tap GRANT ACCESS and choose Allow in the Shizuku dialog."
+        ShizukuUiState.READY -> "Privileged bridge ready. Every operation is verified by re-reading the system."
     }
 
     Column(
@@ -119,6 +126,12 @@ fun DashboardScreen(
             }
             Spacer(Modifier.height(8.dp))
             Text(
+                guidance,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
                 session.currentDensity?.let {
                     "Current density: $it (physical ${session.physicalDensity})"
                 } ?: "Current density: not read yet or unreadable",
@@ -136,6 +149,9 @@ fun DashboardScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = onReadDensity, enabled = !busy) {
                     Text("READ DENSITY")
+                }
+                FilledTonalButton(onClick = onRefreshStatus) {
+                    Text("REFRESH STATUS")
                 }
                 if (shizukuState == ShizukuUiState.NOT_AUTHORIZED) {
                     FilledTonalButton(onClick = onRequestPermission) {
