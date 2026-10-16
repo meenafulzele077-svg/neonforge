@@ -13,8 +13,8 @@ android {
         applicationId = "com.neonforge.launcher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.2.0-phase2"
+        versionCode = 2
+        versionName = "0.3.0-phase3"
     }
 
     buildTypes {
@@ -51,6 +51,8 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
