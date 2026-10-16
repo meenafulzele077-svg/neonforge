@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -61,7 +62,7 @@ fun BridgeSetupScreen(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Paste the bridge token from Termux:\n\ncat ~/neonforge_bridge/.token",
+                "Termux Bridge Configuration\n\nPaste the bridge token from Termux:\n\ncat ~/neonforge_bridge/.token",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
