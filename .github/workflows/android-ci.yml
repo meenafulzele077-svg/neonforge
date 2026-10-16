@@ -45,6 +45,12 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
 
+      - name: Print Shizuku entries from merged manifest
+        run: |
+          M=$(find app/build/intermediates -path "*merged_manifest*" -name "AndroidManifest.xml" | head -n 1)
+          echo "MERGED_MANIFEST=$M"
+          grep -i -n "shizuku" "$M" || echo "NO_SHIZUKU_ENTRIES_IN_MERGED_MANIFEST"
+
       - name: Verify APK artifact is non-empty
         run: |
           ls -l app/build/outputs/apk/debug/
