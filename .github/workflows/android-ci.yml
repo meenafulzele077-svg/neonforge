@@ -23,6 +23,28 @@ jobs:
         with:
           gradle-version: 8.11.1
 
+      - name: Resolve dependencies for API inspection
+        continue-on-error: true
+        run: gradle --no-daemon -q app:dependencies --configuration debugCompileClasspath > /dev/null 2>&1 || true
+
+      - name: Inspect Shizuku API surface (diagnostic)
+        continue-on-error: true
+        run: |
+          echo "=== shizuku artifacts in cache ==="
+          find "$HOME/.gradle/caches/modules-2/files-2.1" -path "*shizuku*" -type f | head -n 20
+          AAR=$(find "$HOME/.gradle/caches/modules-2/files-2.1" -path "*shizuku*" -name "api-*.aar" | head -n 1)
+          echo "AAR=$AAR"
+          if [ -n "$AAR" ]; then
+            mkdir -p /tmp/shizuku_api
+            unzip -o -q "$AAR" classes.jar -d /tmp/shizuku_api
+            echo "=== public surface: rikka.shizuku.Shizuku (filtered) ==="
+            javap -classpath /tmp/shizuku_api/classes.jar rikka.shizuku.Shizuku | grep -iE "process|service|ping|permission|version|uid|class|interface" || true
+            echo "=== public surface: rikka.shizuku.ShizukuRemoteProcess ==="
+            javap -classpath /tmp/shizuku_api/classes.jar rikka.shizuku.ShizukuRemoteProcess || true
+            echo "=== IShizukuService process-related methods ==="
+            javap -classpath /tmp/shizuku_api/classes.jar rikka.shizuku.IShizukuService | grep -iE "process|shell" || true
+          fi
+
       - name: Run unit tests
         run: gradle --no-daemon --stacktrace testDebugUnitTest
 
