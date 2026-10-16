@@ -81,7 +81,7 @@ fun NfRoot() {
         TermuxAdbAdapter(bridgePort.toIntOrNull() ?: 38471, bridgeToken)
     }
     val router = remember(termuxAdapter) { PrivilegeRouter(termuxAdapter) }
-    val controller = remember { DensityController(router, journalRepo, opLog) }
+    val controller = remember(router) { DensityController(router, journalRepo, opLog) }
 
     val profiles by profileRepo.profiles.collectAsState(initial = emptyList())
     val settings by settingsRepo.settings.collectAsState(initial = NfSettings())
