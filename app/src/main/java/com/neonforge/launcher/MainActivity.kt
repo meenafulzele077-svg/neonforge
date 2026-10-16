@@ -39,6 +39,7 @@ import com.neonforge.launcher.data.SettingsRepository
 import com.neonforge.launcher.density.DensityController
 import com.neonforge.launcher.density.OperationLog
 import com.neonforge.launcher.density.RecoveryJournalRepo
+import com.neonforge.launcher.shizuku.BinderDeliveryInfo
 import com.neonforge.launcher.shizuku.ShizukuBridge
 import com.neonforge.launcher.ui.navigation.NfRoutes
 import com.neonforge.launcher.ui.screens.DashboardScreen
@@ -92,17 +93,20 @@ fun NfRoot() {
     }
     var binderAlive by remember { mutableStateOf(false) }
     var permissionGranted by remember { mutableStateOf(false) }
+    var requestInfo by remember { mutableStateOf("not attempted yet") }
     var launchError by remember { mutableStateOf<String?>(null) }
 
     val refreshShizuku: () -> Unit = {
-        binderAlive = ShizukuBridge.isBinderAlive()
+        val alive = ShizukuBridge.isBinderAlive()
+        binderAlive = alive
         permissionGranted = ShizukuBridge.isPermissionGranted()
+        if (!alive && shizukuInstalled) {
+            requestInfo = ShizukuBridge.requestBinderExplicitly(context)
+        }
     }
 
     LaunchedEffect(Unit) { refreshShizuku() }
 
-    // Refresh privilege status on every resume: Shizuku may start/stop while we
-    // are in background; the binder state must never be stale on screen.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -118,6 +122,10 @@ fun NfRoot() {
         }
         ShizukuBridge.addPermissionListener(listener)
         onDispose { ShizukuBridge.removePermissionListener(listener) }
+    }
+
+    val delivery = remember(requestInfo, binderAlive) {
+        ShizukuBridge.deliveryInfo(context, requestInfo)
     }
 
     val shizukuState = when {
@@ -241,7 +249,8 @@ fun NfRoot() {
                     binderAlive = binderAlive,
                     permissionGranted = permissionGranted,
                     session = session,
-                    ops = ops
+                    ops = ops,
+                    delivery = delivery
                 )
             }
         }

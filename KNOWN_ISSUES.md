@@ -35,3 +35,13 @@
   Verification gates: CI compile + on-device READ DENSITY returning real numbers.
 - Fallback if 12.2.0 also hides newProcess: implement user-service mechanism or adopt
   an externally documented method (owner-approved research path).
+
+## Binder delivery: active-pull strategy (replaces passive wait)
+- Verified: server running + NEONFORGE authorized, yet client pingBinder()=false
+  (op log exit=-1 series, 10-16 22:23-22:24). Delivery chain defect isolated to client side.
+- New behavior: on every resume with dead binder, NEONFORGE reflectively invokes the
+  Shizuku provider's public requestBinder* entry point (compile-safe across versions)
+  and Diagnostics > "Binder Delivery Chain" reports: provider class present,
+  own provider registered, Shizuku provider visible, pull result string.
+- CI now prints provider 12.2.0 public surface and merged-manifest shizuku lines
+  into the run Summary for permanent evidence.

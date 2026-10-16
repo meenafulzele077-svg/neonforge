@@ -1,16 +1,25 @@
 package com.neonforge.launcher.shizuku
 
+import android.content.Context
 import android.content.pm.PackageManager
 import rikka.shizuku.Shizuku
 import java.io.BufferedReader
 
 data class CommandResult(val exitCode: Int, val stdout: String, val stderr: String)
 
+data class BinderDeliveryInfo(
+    val providerClassPresent: Boolean,
+    val ownProviderRegistered: Boolean,
+    val serverProviderVisible: Boolean,
+    val requestInfo: String
+)
+
 /**
- * Single gateway for ALL privileged operations.
- * Command execution uses Shizuku.newProcess, public in dev.rikka.shizuku:api:12.2.0
- * (pinned after javap proved 13.1.5 hides it: CI summary evidence, run of 4fdccb5).
- * Every call returns explicit exit code + stdout + stderr. No guessed success.
+ * Privileged-operation gateway.
+ * Command execution: Shizuku.newProcess (public in pinned api 12.2.0, CI-javap verified).
+ * Binder delivery: ACTIVE PULL strategy. If pingBinder() is false while the Shizuku
+ * server is running, we explicitly invoke the provider's public binder-request entry
+ * point (reflectively, for version resilience). All probes are read-only and honest.
  */
 object ShizukuBridge {
 
@@ -34,6 +43,40 @@ object ShizukuBridge {
 
     fun removePermissionListener(listener: Shizuku.OnRequestPermissionResultListener) {
         runCatching { Shizuku.removeRequestPermissionResultListener(listener) }
+    }
+
+    /** Actively asks the Shizuku provider to fetch the binder. Returns an honest status string. */
+    fun requestBinderExplicitly(context: Context): String {
+        val cls = runCatching { Class.forName("rikka.shizuku.ShizukuProvider") }.getOrNull()
+            ?: return "ShizukuProvider class MISSING from APK (manifest/merge defect)"
+        val method = cls.methods.firstOrNull {
+            it.name.contains("requestBinder", ignoreCase = true) &&
+                it.parameterTypes.toList() == listOf(Context::class.java)
+        } ?: cls.methods.firstOrNull { it.name.contains("requestBinder", ignoreCase = true) }
+            ?: return "ShizukuProvider exposes no public requestBinder* method in this version"
+        return runCatching {
+            method.invoke(null, context)
+            "explicit binder pull invoked: ${method.name}"
+        }.getOrElse { "explicit binder pull failed: ${it.message}" }
+    }
+
+    fun deliveryInfo(context: Context, requestInfo: String): BinderDeliveryInfo {
+        val providerClassPresent = runCatching {
+            Class.forName("rikka.shizuku.ShizukuProvider")
+        }.isSuccess
+        val ownProviderRegistered = runCatching {
+            context.packageManager.resolveContentProvider(
+                "${context.packageName}.shizuku", 0
+            ) != null
+        }.getOrDefault(false)
+        val serverProviderVisible = runCatching {
+            context.packageManager.resolveContentProvider(
+                "moe.shizuku.privileged.api.shizuku", 0
+            ) != null
+        }.getOrDefault(false)
+        return BinderDeliveryInfo(
+            providerClassPresent, ownProviderRegistered, serverProviderVisible, requestInfo
+        )
     }
 
     fun runCommand(vararg command: String): CommandResult {

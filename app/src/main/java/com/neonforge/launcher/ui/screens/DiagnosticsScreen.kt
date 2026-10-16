@@ -18,7 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.neonforge.launcher.ShizukuUiState
 import com.neonforge.launcher.density.OpRecord
+import com.neonforge.launcher.density.SessionPhase
 import com.neonforge.launcher.density.SessionSnapshot
+import com.neonforge.launcher.shizuku.BinderDeliveryInfo
 import com.neonforge.launcher.shizuku.ShizukuBridge
 import com.neonforge.launcher.ui.components.NfCard
 import com.neonforge.launcher.ui.components.NfStatusChip
@@ -33,7 +35,8 @@ fun DiagnosticsScreen(
     binderAlive: Boolean,
     permissionGranted: Boolean,
     session: SessionSnapshot,
-    ops: List<OpRecord>
+    ops: List<OpRecord>,
+    delivery: BinderDeliveryInfo
 ) {
     val timeFormat = remember { SimpleDateFormat("MM-dd HH:mm:ss", Locale.US) }
     val serverVersion = remember { ShizukuBridge.serverVersion() }
@@ -65,15 +68,22 @@ fun DiagnosticsScreen(
         }
 
         NfCard {
+            Text("Binder Delivery Chain", style = MaterialTheme.typography.titleMedium)
+            InfoRow("Provider class in APK", delivery.providerClassPresent.toString())
+            InfoRow("Own provider registered", delivery.ownProviderRegistered.toString())
+            InfoRow("Shizuku provider visible", delivery.serverProviderVisible.toString())
+            InfoRow("Active pull result", delivery.requestInfo)
+        }
+
+        NfCard {
             Text("Session State", style = MaterialTheme.typography.titleMedium)
             NfStatusChip(
                 session.phase.name,
                 when (session.phase) {
-                    com.neonforge.launcher.density.SessionPhase.IDLE -> NfStatusTone.NEUTRAL
-                    com.neonforge.launcher.density.SessionPhase.APPLYING,
-                    com.neonforge.launcher.density.SessionPhase.RESTORING -> NfStatusTone.WARNING
-                    com.neonforge.launcher.density.SessionPhase.IN_SESSION -> NfStatusTone.SUCCESS
-                    com.neonforge.launcher.density.SessionPhase.ERROR -> NfStatusTone.ERROR
+                    SessionPhase.IDLE -> NfStatusTone.NEUTRAL
+                    SessionPhase.APPLYING, SessionPhase.RESTORING -> NfStatusTone.WARNING
+                    SessionPhase.IN_SESSION -> NfStatusTone.SUCCESS
+                    SessionPhase.ERROR -> NfStatusTone.ERROR
                 }
             )
             if (session.message.isNotBlank()) {
