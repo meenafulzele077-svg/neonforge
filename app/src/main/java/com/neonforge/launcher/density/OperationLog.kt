@@ -34,10 +34,12 @@ class OperationLog(private val context: Context) {
     suspend fun record(operation: String, exitCode: Int, detail: String, success: Boolean) {
         context.opStore.edit { p ->
             val raw = p[key] ?: ""
-            val current = if (raw.isBlank()) mutableListOf()
-            else runCatching {
-                json.decodeFromString<List<OpRecord>>(raw).toMutableList()
-            }.getOrDefault(mutableListOf())
+            val current: MutableList<OpRecord> = if (raw.isBlank()) {
+                mutableListOf()
+            } else {
+                runCatching { json.decodeFromString<List<OpRecord>>(raw).toMutableList() }
+                    .getOrDefault(mutableListOf())
+            }
             current.add(0, OpRecord(System.currentTimeMillis(), operation, exitCode, detail, success))
             p[key] = json.encodeToString(current.take(20))
         }
