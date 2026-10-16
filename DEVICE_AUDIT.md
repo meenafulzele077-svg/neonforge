@@ -42,3 +42,14 @@ development_settings_enabled=cmd: Failure calling service settings: Failed trans
   state must be confirmed in Settings UI or the Shizuku app.
 - Repository: https://github.com/meenafulzele077-svg/neonforge.git, branch main,
   initial commit bc309b8 pushed successfully.
+
+## T1 self-adb privilege proof (VERIFIED, device time ~12:47)
+- adb pair 10.85.123.125:36175 -> Successfully paired [guid=adb-10BF2H1MMS006E9-OLMQn5]
+- adb connect 10.85.123.125:36205 -> connected
+- adb shell id -> uid=2000(shell) gid=2000(shell) context=u:r:shell:s0
+- BASELINE TRUTH: Physical density 440, no initial override.
+- Cycle verified: apply 512 -> "Override density: 512"; reset -> override removed;
+  physical stayed 440 throughout.
+- Channel: Termux android-tools adb client -> device's own adbd (Wireless Debugging).
+- Caveat: adb connection dies on reboot / wireless-debugging toggle; manual reconnect
+  required (bridge will report honest ADB-not-connected errors until then).

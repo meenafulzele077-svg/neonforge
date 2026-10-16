@@ -16,3 +16,8 @@
 ## [0.0.1] - Phase 1
 - Initial device audit (iQOO Z9s 5G, Android 16, SDK 36).
 - Repository bootstrap and environment verification.
+
+## [0.4.0] - Phase 3 T1 verified
+- Self-adb privilege channel proven on device: uid=2000(shell) via Wireless Debugging
+  pairing from Termux; wm density apply/verify/reset cycle verified (baseline 440).
+- Shizuku path left dormant by owner decision.
