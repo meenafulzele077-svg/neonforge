@@ -98,10 +98,10 @@ fun NfRoot() {
     var channelDescription by remember { mutableStateOf("Checking...") }
     var launchError by remember { mutableStateOf<String?>(null) }
 
-    val refreshShizuku: () -> Unit = {
-        val alive = router.getActiveChannelSyncSafe()
-        channelReady = alive.ready
-        channelDescription = alive.description
+    val refreshShizuku: suspend () -> Unit = {
+        val status = router.getActiveChannel()
+        channelReady = status.ready
+        channelDescription = status.description
     }
 
     LaunchedEffect(Unit) { refreshShizuku() }
