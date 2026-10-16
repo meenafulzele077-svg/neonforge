@@ -21,3 +21,7 @@
 - Self-adb privilege channel proven on device: uid=2000(shell) via Wireless Debugging
   pairing from Termux; wm density apply/verify/reset cycle verified (baseline 440).
 - Shizuku path left dormant by owner decision.
+
+## [0.4.1] - Bridge channel verified
+- localhost bridge end-to-end verified with token auth and command whitelist.
+- nf_up.sh recovery helper added for post-reboot channel restoration.

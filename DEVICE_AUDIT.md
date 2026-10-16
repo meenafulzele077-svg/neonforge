@@ -53,3 +53,13 @@ development_settings_enabled=cmd: Failure calling service settings: Failed trans
 - Channel: Termux android-tools adb client -> device's own adbd (Wireless Debugging).
 - Caveat: adb connection dies on reboot / wireless-debugging toggle; manual reconnect
   required (bridge will report honest ADB-not-connected errors until then).
+
+## Termux localhost bridge verified (device time ~12:52)
+- Bridge: python3 http.server on 127.0.0.1:38471, token-auth, whitelist-only
+  (wm density read / set<int 160-1200> / reset). All six probe results passed:
+  health ok; read exit0 Physical 440; apply 512 exit0; read-after Override 512;
+  reset exit0; bad-token 403; non-whitelist 403.
+- Channel chain: NEONFORGE -> 127.0.0.1 bridge -> Termux adb client -> device adbd
+  (Wireless Debugging) -> uid 2000 shell -> wm density.
+- No internet involvement in operations; all traffic loopback/local.
+- Recovery tool: ~/neonforge_bridge/nf_up.sh (reconnect + bridge health, one command).
