@@ -42,7 +42,6 @@ import com.neonforge.launcher.density.RecoveryJournalRepo
 import com.neonforge.launcher.privilege.BridgeConfig
 import com.neonforge.launcher.privilege.PrivilegeRouter
 import com.neonforge.launcher.privilege.TermuxAdbAdapter
-import com.neonforge.launcher.shizuku.ShizukuBridge
 import com.neonforge.launcher.ui.navigation.NfRoutes
 import com.neonforge.launcher.ui.screens.BridgeSetupScreen
 import com.neonforge.launcher.ui.screens.DashboardScreen
@@ -54,7 +53,6 @@ import com.neonforge.launcher.ui.theme.NeonForgeTheme
 import com.neonforge.launcher.ui.theme.NfMidnight
 import com.neonforge.launcher.ui.theme.NfSurface
 import kotlinx.coroutines.launch
-import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,20 +98,20 @@ fun NfRoot() {
     var channelDescription by remember { mutableStateOf("Checking...") }
     var launchError by remember { mutableStateOf<String?>(null) }
 
-    val refreshChannel: () -> Unit = {
-        scope.launch {
-            val status = router.getActiveChannel()
-            channelReady = status.ready
-            channelDescription = status.description
-        }
+    val refreshShizuku: () -> Unit = {
+        val alive = router.getActiveChannelSyncSafe()
+        channelReady = alive.ready
+        channelDescription = alive.description
     }
 
-    LaunchedEffect(Unit) { refreshChannel() }
+    LaunchedEffect(Unit) { refreshShizuku() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshChannel()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                scope.launch { refreshShizuku() }
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -170,10 +168,10 @@ fun NfRoot() {
                     onReadDensity = {
                         scope.launch {
                             controller.readCurrent()
-                            refreshChannel()
+                            refreshShizuku()
                         }
                     },
-                    onRefreshChannel = { refreshChannel() },
+                    onRefreshChannel = { scope.launch { refreshShizuku() } },
                     onOpenBridgeSetup = { navController.navigate(NfRoutes.BRIDGE_SETUP) },
                     onLaunch = {
                         selected?.let { p ->
@@ -195,14 +193,14 @@ fun NfRoot() {
                                         opLog.record("LAUNCH", 0, p.packageName, true)
                                     }
                                 }
-                                refreshChannel()
+                                refreshShizuku()
                             }
                         }
                     },
                     onRestore = {
                         scope.launch {
                             journal?.let { controller.restoreSession(it) }
-                            refreshChannel()
+                            refreshShizuku()
                         }
                     },
                     onSelectGame = { navController.navigate(NfRoutes.LIBRARY) },
@@ -229,9 +227,22 @@ fun NfRoot() {
                 BridgeSetupScreen(
                     bridgeConfig = bridgeConfig,
                     onBack = { navController.popBackStack() },
-                    onTestConnection = {
-                        scope.launch {
-                            refreshChannel()
+                    onTestConnection = { token, port ->
+                        val probe = TermuxAdbAdapter(port.toIntOrNull() ?: 38471, token)
+                        val alive = probe.isBridgeAlive()
+                        if (alive) {
+                            channelReady = true
+                            channelDescription = "Termux bridge ready (uid 2000 shell)"
+                            "CONNECTED: Termux bridge ready (uid 2000 shell)"
+                        } else {
+                            val status = router.getActiveChannel()
+                            channelReady = status.ready
+                            channelDescription = status.description
+                            if (status.ready) {
+                                "CONNECTED: ${status.description}"
+                            } else {
+                                "NOT CONNECTED: bridge ya adb zinda nahi hai. Termux me chalao: ~/neonforge_bridge/nf_up.sh — phir dobara test karo."
+                            }
                         }
                     }
                 )

@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,13 +29,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.neonforge.launcher.privilege.BridgeConfig
 import com.neonforge.launcher.ui.components.NfCard
+import com.neonforge.launcher.ui.theme.NfError
+import com.neonforge.launcher.ui.theme.NfSuccess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun BridgeSetupScreen(
     bridgeConfig: BridgeConfig,
     onBack: () -> Unit,
-    onTestConnection: () -> Unit
+    onTestConnection: suspend (token: String, port: String) -> String
 ) {
     val storedToken by bridgeConfig.token.collectAsState(initial = "")
     val storedPort by bridgeConfig.port.collectAsState(initial = "38471")
@@ -42,6 +46,13 @@ fun BridgeSetupScreen(
 
     var tokenInput by remember { mutableStateOf(storedToken) }
     var portInput by remember { mutableStateOf(storedPort) }
+    var testing by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var resultOk by remember { mutableStateOf(false) }
+
+    LaunchedEffect(storedToken) {
+        if (tokenInput.isBlank() && storedToken.isNotBlank()) tokenInput = storedToken
+    }
 
     Column(
         modifier = Modifier
@@ -56,13 +67,10 @@ fun BridgeSetupScreen(
         Text("Bridge Setup", style = MaterialTheme.typography.headlineMedium)
 
         NfCard {
-            Text(
-                "Termux Bridge Configuration",
-                style = MaterialTheme.typography.titleMedium
-            )
+            Text("Termux Bridge Configuration", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Termux Bridge Configuration\n\nPaste the bridge token from Termux:\n\ncat ~/neonforge_bridge/.token",
+                "Paste the bridge token from Termux:\n\ncat ~/neonforge_bridge/.token",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -86,14 +94,34 @@ fun BridgeSetupScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        bridgeConfig.setToken(tokenInput)
-                        bridgeConfig.setPort(portInput)
-                        onTestConnection()
+                        testing = true
+                        result = null
+                        val token = tokenInput.trim()
+                        val port = portInput.trim()
+                        bridgeConfig.setToken(token)
+                        bridgeConfig.setPort(port)
+                        val res = onTestConnection(token, port)
+                        result = res
+                        resultOk = res.startsWith("CONNECTED")
+                        testing = false
+                        if (resultOk) {
+                            delay(900)
+                            onBack()
+                        }
                     }
                 },
+                enabled = !testing,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("SAVE & TEST CONNECTION")
+                Text(if (testing) "TESTING…" else "SAVE & TEST CONNECTION")
+            }
+            if (result != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    result!!,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (resultOk) NfSuccess else NfError
+                )
             }
         }
 
