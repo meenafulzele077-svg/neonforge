@@ -16,12 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.neonforge.launcher.ShizukuUiState
 import com.neonforge.launcher.density.OpRecord
 import com.neonforge.launcher.density.SessionPhase
 import com.neonforge.launcher.density.SessionSnapshot
-import com.neonforge.launcher.shizuku.BinderDeliveryInfo
-import com.neonforge.launcher.shizuku.ShizukuBridge
 import com.neonforge.launcher.ui.components.NfCard
 import com.neonforge.launcher.ui.components.NfStatusChip
 import com.neonforge.launcher.ui.components.NfStatusTone
@@ -31,15 +28,12 @@ import java.util.Locale
 
 @Composable
 fun DiagnosticsScreen(
-    shizukuState: ShizukuUiState,
-    binderAlive: Boolean,
-    permissionGranted: Boolean,
+    channelReady: Boolean,
+    channelDescription: String,
     session: SessionSnapshot,
-    ops: List<OpRecord>,
-    delivery: BinderDeliveryInfo
+    ops: List<OpRecord>
 ) {
     val timeFormat = remember { SimpleDateFormat("MM-dd HH:mm:ss", Locale.US) }
-    val serverVersion = remember { ShizukuBridge.serverVersion() }
 
     Column(
         modifier = Modifier
@@ -60,19 +54,9 @@ fun DiagnosticsScreen(
         }
 
         NfCard {
-            Text("System Access", style = MaterialTheme.typography.titleMedium)
-            InfoRow("Shizuku state", shizukuState.name)
-            InfoRow("Binder alive", binderAlive.toString())
-            InfoRow("Permission granted", permissionGranted.toString())
-            InfoRow("Shizuku server version", serverVersion?.toString() ?: "unknown")
-        }
-
-        NfCard {
-            Text("Binder Delivery Chain", style = MaterialTheme.typography.titleMedium)
-            InfoRow("Provider class in APK", delivery.providerClassPresent.toString())
-            InfoRow("Own provider registered", delivery.ownProviderRegistered.toString())
-            InfoRow("Shizuku provider visible", delivery.serverProviderVisible.toString())
-            InfoRow("Active pull result", delivery.requestInfo)
+            Text("Privilege Channel", style = MaterialTheme.typography.titleMedium)
+            InfoRow("Channel ready", channelReady.toString())
+            InfoRow("Description", channelDescription)
         }
 
         NfCard {
@@ -93,7 +77,7 @@ fun DiagnosticsScreen(
         }
 
         NfCard {
-            Text("Operation Log (real results)", style = MaterialTheme.typography.titleMedium)
+            Text("Operation Log", style = MaterialTheme.typography.titleMedium)
             if (ops.isEmpty()) {
                 Text(
                     "No operations recorded yet.",

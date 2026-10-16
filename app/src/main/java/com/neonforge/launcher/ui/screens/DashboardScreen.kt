@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.neonforge.launcher.ShizukuUiState
 import com.neonforge.launcher.data.DpiProfile
 import com.neonforge.launcher.density.OpRecord
 import com.neonforge.launcher.density.RecoveryJournal
@@ -38,14 +38,15 @@ import com.neonforge.launcher.ui.theme.NfWarning
 fun DashboardScreen(
     profiles: List<DpiProfile>,
     selected: DpiProfile?,
-    shizukuState: ShizukuUiState,
+    channelReady: Boolean,
+    channelDescription: String,
     session: SessionSnapshot,
     journal: RecoveryJournal?,
     lastOp: OpRecord?,
     launchError: String?,
     onReadDensity: () -> Unit,
-    onRequestPermission: () -> Unit,
-    onRefreshStatus: () -> Unit,
+    onRefreshChannel: () -> Unit,
+    onOpenBridgeSetup: () -> Unit,
     onLaunch: () -> Unit,
     onRestore: () -> Unit,
     onSelectGame: () -> Unit,
@@ -57,12 +58,6 @@ fun DashboardScreen(
         SessionPhase.APPLYING, SessionPhase.RESTORING -> NfStatusTone.WARNING
         SessionPhase.IN_SESSION -> NfStatusTone.SUCCESS
         SessionPhase.ERROR -> NfStatusTone.ERROR
-    }
-    val guidance = when (shizukuState) {
-        ShizukuUiState.NOT_INSTALLED -> "Install Shizuku from the official source, then return here."
-        ShizukuUiState.NOT_RUNNING -> "Start Shizuku (Wireless debugging) in the Shizuku app, then return here or tap REFRESH STATUS."
-        ShizukuUiState.NOT_AUTHORIZED -> "Tap GRANT ACCESS and choose Allow in the Shizuku dialog."
-        ShizukuUiState.READY -> "Privileged bridge ready. Every operation is verified by re-reading the system."
     }
 
     Column(
@@ -105,28 +100,18 @@ fun DashboardScreen(
         }
 
         NfCard {
-            Text("System access", style = MaterialTheme.typography.titleMedium)
+            Text("Privilege Channel", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NfStatusChip(
-                    when (shizukuState) {
-                        ShizukuUiState.NOT_INSTALLED -> "SHIZUKU: NOT INSTALLED"
-                        ShizukuUiState.NOT_RUNNING -> "SHIZUKU: NOT RUNNING"
-                        ShizukuUiState.NOT_AUTHORIZED -> "SHIZUKU: NOT AUTHORIZED"
-                        ShizukuUiState.READY -> "SHIZUKU: READY"
-                    },
-                    when (shizukuState) {
-                        ShizukuUiState.NOT_INSTALLED -> NfStatusTone.ERROR
-                        ShizukuUiState.NOT_RUNNING -> NfStatusTone.WARNING
-                        ShizukuUiState.NOT_AUTHORIZED -> NfStatusTone.WARNING
-                        ShizukuUiState.READY -> NfStatusTone.SUCCESS
-                    }
+                    if (channelReady) "CHANNEL: READY" else "CHANNEL: OFFLINE",
+                    if (channelReady) NfStatusTone.SUCCESS else NfStatusTone.ERROR
                 )
                 NfStatusChip("SESSION: ${session.phase.name}", phaseTone)
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                guidance,
+                channelDescription,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -134,7 +119,7 @@ fun DashboardScreen(
             Text(
                 session.currentDensity?.let {
                     "Current density: $it (physical ${session.physicalDensity})"
-                } ?: "Current density: not read yet or unreadable",
+                } ?: "Current density: not read yet",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -147,15 +132,16 @@ fun DashboardScreen(
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = onReadDensity, enabled = !busy) {
+                FilledTonalButton(onClick = onReadDensity, enabled = !busy && channelReady) {
                     Text("READ DENSITY")
                 }
-                FilledTonalButton(onClick = onRefreshStatus) {
-                    Text("REFRESH STATUS")
+                FilledTonalButton(onClick = onRefreshChannel) {
+                    Text("REFRESH")
                 }
-                if (shizukuState == ShizukuUiState.NOT_AUTHORIZED) {
-                    FilledTonalButton(onClick = onRequestPermission) {
-                        Text("GRANT ACCESS")
+                if (!channelReady) {
+                    FilledTonalButton(onClick = onOpenBridgeSetup) {
+                        Icon(Icons.Default.Settings, contentDescription = null)
+                        Text("SETUP")
                     }
                 }
             }
@@ -205,7 +191,7 @@ fun DashboardScreen(
                 NfPrimaryButton(
                     "LAUNCH GAME",
                     onClick = onLaunch,
-                    enabled = shizukuState == ShizukuUiState.READY && !busy
+                    enabled = channelReady && !busy
                 )
                 if (session.phase == SessionPhase.IN_SESSION) {
                     Spacer(Modifier.height(8.dp))
@@ -213,7 +199,7 @@ fun DashboardScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Launch is enabled only with Shizuku READY. Every apply/restore is verified by re-reading the system.",
+                    "Launch is enabled only when channel is READY. Every apply/restore is verified by re-reading the system.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

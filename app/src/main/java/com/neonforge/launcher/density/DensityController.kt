@@ -1,6 +1,6 @@
 package com.neonforge.launcher.density
 
-import com.neonforge.launcher.shizuku.ShizukuBridge
+import com.neonforge.launcher.privilege.PrivilegeRouter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,10 +16,11 @@ data class SessionSnapshot(
 
 /**
  * Density engine state machine.
+ * Uses PrivilegeRouter for all command execution (Termux-ADB primary, Shizuku fallback).
  * Every APPLY and RESTORE is followed by a verification read.
- * The journal is written before mutation and cleared only after verified restore.
  */
 class DensityController(
+    private val router: PrivilegeRouter,
     private val journalRepo: RecoveryJournalRepo,
     private val opLog: OperationLog
 ) {
@@ -27,7 +28,7 @@ class DensityController(
     val session: StateFlow<SessionSnapshot> = _session.asStateFlow()
 
     suspend fun readCurrent(): Result<DensityState> {
-        val res = ShizukuBridge.runCommand("wm", "density")
+        val res = router.runCommand("wm", "density")
         if (res.exitCode != 0) {
             opLog.record("READ", res.exitCode, res.stderr.ifBlank { res.stdout }, false)
             _session.value = _session.value.copy(
@@ -65,7 +66,7 @@ class DensityController(
                 startedAt = System.currentTimeMillis()
             )
         )
-        val apply = ShizukuBridge.runCommand("wm", "density", target.toString())
+        val apply = router.runCommand("wm", "density", target.toString())
         if (apply.exitCode != 0) {
             opLog.record("APPLY", apply.exitCode, apply.stderr.ifBlank { apply.stdout }, false)
             _session.value = SessionSnapshot(
@@ -106,7 +107,7 @@ class DensityController(
         } else {
             arrayOf("wm", "density", journal.baselineOverride.toString())
         }
-        val restore = ShizukuBridge.runCommand(*command)
+        val restore = router.runCommand(*command)
         if (restore.exitCode != 0) {
             opLog.record("RESTORE", restore.exitCode, restore.stderr.ifBlank { restore.stdout }, false)
             _session.value = SessionSnapshot(

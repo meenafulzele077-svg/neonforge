@@ -39,9 +39,12 @@ import com.neonforge.launcher.data.SettingsRepository
 import com.neonforge.launcher.density.DensityController
 import com.neonforge.launcher.density.OperationLog
 import com.neonforge.launcher.density.RecoveryJournalRepo
-import com.neonforge.launcher.shizuku.BinderDeliveryInfo
+import com.neonforge.launcher.privilege.BridgeConfig
+import com.neonforge.launcher.privilege.PrivilegeRouter
+import com.neonforge.launcher.privilege.TermuxAdbAdapter
 import com.neonforge.launcher.shizuku.ShizukuBridge
 import com.neonforge.launcher.ui.navigation.NfRoutes
+import com.neonforge.launcher.ui.screens.BridgeSetupScreen
 import com.neonforge.launcher.ui.screens.DashboardScreen
 import com.neonforge.launcher.ui.screens.DiagnosticsScreen
 import com.neonforge.launcher.ui.screens.LibraryScreen
@@ -52,8 +55,6 @@ import com.neonforge.launcher.ui.theme.NfMidnight
 import com.neonforge.launcher.ui.theme.NfSurface
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
-
-enum class ShizukuUiState { NOT_INSTALLED, NOT_RUNNING, NOT_AUTHORIZED, READY }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,7 +74,16 @@ fun NfRoot() {
     val settingsRepo = remember { SettingsRepository(context) }
     val journalRepo = remember { RecoveryJournalRepo(context) }
     val opLog = remember { OperationLog(context) }
-    val controller = remember { DensityController(journalRepo, opLog) }
+    val bridgeConfig = remember { BridgeConfig(context) }
+
+    val bridgeToken by bridgeConfig.token.collectAsState(initial = "")
+    val bridgePort by bridgeConfig.port.collectAsState(initial = "38471")
+
+    val termuxAdapter = remember(bridgeToken, bridgePort) {
+        TermuxAdbAdapter(bridgePort.toIntOrNull() ?: 38471, bridgeToken)
+    }
+    val router = remember(termuxAdapter) { PrivilegeRouter(termuxAdapter) }
+    val controller = remember { DensityController(router, journalRepo, opLog) }
 
     val profiles by profileRepo.profiles.collectAsState(initial = emptyList())
     val settings by settingsRepo.settings.collectAsState(initial = NfSettings())
@@ -86,53 +96,27 @@ fun NfRoot() {
     val route = backStack?.destination?.route
     val scope = rememberCoroutineScope()
 
-    val shizukuInstalled = remember {
-        runCatching {
-            context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null
-        }.getOrDefault(false)
-    }
-    var binderAlive by remember { mutableStateOf(false) }
-    var permissionGranted by remember { mutableStateOf(false) }
-    var requestInfo by remember { mutableStateOf("not attempted yet") }
+    var channelReady by remember { mutableStateOf(false) }
+    var channelDescription by remember { mutableStateOf("Checking...") }
     var launchError by remember { mutableStateOf<String?>(null) }
 
-    val refreshShizuku: () -> Unit = {
-        val alive = ShizukuBridge.isBinderAlive()
-        binderAlive = alive
-        permissionGranted = ShizukuBridge.isPermissionGranted()
-        if (!alive && shizukuInstalled) {
-            requestInfo = ShizukuBridge.requestBinderExplicitly(context)
+    val refreshChannel: () -> Unit = {
+        scope.launch {
+            val status = router.getActiveChannel()
+            channelReady = status.ready
+            channelDescription = status.description
         }
     }
 
-    LaunchedEffect(Unit) { refreshShizuku() }
+    LaunchedEffect(Unit) { refreshChannel() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshShizuku()
+            if (event == Lifecycle.Event.ON_RESUME) refreshChannel()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    DisposableEffect(Unit) {
-        val listener = Shizuku.OnRequestPermissionResultListener { code, _ ->
-            if (code == ShizukuBridge.PERMISSION_REQUEST_CODE) refreshShizuku()
-        }
-        ShizukuBridge.addPermissionListener(listener)
-        onDispose { ShizukuBridge.removePermissionListener(listener) }
-    }
-
-    val delivery = remember(requestInfo, binderAlive) {
-        ShizukuBridge.deliveryInfo(context, requestInfo)
-    }
-
-    val shizukuState = when {
-        !shizukuInstalled -> ShizukuUiState.NOT_INSTALLED
-        !binderAlive -> ShizukuUiState.NOT_RUNNING
-        !permissionGranted -> ShizukuUiState.NOT_AUTHORIZED
-        else -> ShizukuUiState.READY
     }
 
     val selected = profiles.firstOrNull { it.packageName == settings.selectedPackage && it.enabled }
@@ -177,7 +161,8 @@ fun NfRoot() {
                 DashboardScreen(
                     profiles = profiles,
                     selected = selected,
-                    shizukuState = shizukuState,
+                    channelReady = channelReady,
+                    channelDescription = channelDescription,
                     session = session,
                     journal = journal,
                     lastOp = ops.firstOrNull(),
@@ -185,11 +170,11 @@ fun NfRoot() {
                     onReadDensity = {
                         scope.launch {
                             controller.readCurrent()
-                            refreshShizuku()
+                            refreshChannel()
                         }
                     },
-                    onRequestPermission = { ShizukuBridge.requestPermission() },
-                    onRefreshStatus = { refreshShizuku() },
+                    onRefreshChannel = { refreshChannel() },
+                    onOpenBridgeSetup = { navController.navigate(NfRoutes.BRIDGE_SETUP) },
                     onLaunch = {
                         selected?.let { p ->
                             scope.launch {
@@ -210,14 +195,14 @@ fun NfRoot() {
                                         opLog.record("LAUNCH", 0, p.packageName, true)
                                     }
                                 }
-                                refreshShizuku()
+                                refreshChannel()
                             }
                         }
                     },
                     onRestore = {
                         scope.launch {
                             journal?.let { controller.restoreSession(it) }
-                            refreshShizuku()
+                            refreshChannel()
                         }
                     },
                     onSelectGame = { navController.navigate(NfRoutes.LIBRARY) },
@@ -240,17 +225,26 @@ fun NfRoot() {
                     onBack = { navController.popBackStack() }
                 )
             }
+            composable(NfRoutes.BRIDGE_SETUP) {
+                BridgeSetupScreen(
+                    bridgeConfig = bridgeConfig,
+                    onBack = { navController.popBackStack() },
+                    onTestConnection = {
+                        scope.launch {
+                            refreshChannel()
+                        }
+                    }
+                )
+            }
             composable(NfRoutes.SETTINGS) {
                 SettingsScreen(settingsRepo = settingsRepo)
             }
             composable(NfRoutes.DIAGNOSTICS) {
                 DiagnosticsScreen(
-                    shizukuState = shizukuState,
-                    binderAlive = binderAlive,
-                    permissionGranted = permissionGranted,
+                    channelReady = channelReady,
+                    channelDescription = channelDescription,
                     session = session,
-                    ops = ops,
-                    delivery = delivery
+                    ops = ops
                 )
             }
         }
