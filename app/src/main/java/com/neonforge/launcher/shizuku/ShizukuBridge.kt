@@ -8,19 +8,13 @@ data class CommandResult(val exitCode: Int, val stdout: String, val stderr: Stri
 
 /**
  * Single gateway for ALL privileged operations.
- * Status/permission methods below are compiler-verified public API in
- * dev.rikka.shizuku:api:13.1.5.
- *
- * TEMPORARY HONEST STUB for command execution:
- * Shizuku.newProcess(String[], String[], String) is PRIVATE in 13.1.5
- * (verified compiler diagnostic: ShizukuBridge.kt:42:45, CI runs #6/#7).
- * runCommand() returns an explicit FAILURE result until the CI javap diagnostic
- * reveals the supported public command-execution API. It never pretends success.
+ * Command execution uses Shizuku.newProcess, public in dev.rikka.shizuku:api:12.2.0
+ * (pinned after javap proved 13.1.5 hides it: CI summary evidence, run of 4fdccb5).
+ * Every call returns explicit exit code + stdout + stderr. No guessed success.
  */
 object ShizukuBridge {
 
     const val PERMISSION_REQUEST_CODE = 1001
-    const val EXIT_NOT_INTEGRATED = -4
 
     fun isBinderAlive(): Boolean = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
 
@@ -43,10 +37,18 @@ object ShizukuBridge {
     }
 
     fun runCommand(vararg command: String): CommandResult {
-        return CommandResult(
-            exitCode = EXIT_NOT_INTEGRATED,
-            stdout = "",
-            stderr = "SHIZUKU_COMMAND_EXECUTION_NOT_INTEGRATED: public command API under verification"
-        )
+        if (!isBinderAlive()) {
+            return CommandResult(-1, "", "Shizuku binder not alive (is Shizuku running?)")
+        }
+        val process = runCatching { Shizuku.newProcess(command, null, null) }
+            .getOrElse { return CommandResult(-2, "", "Shizuku.newProcess failed: ${it.message}") }
+        val stdout = runCatching {
+            process.inputStream.bufferedReader().use(BufferedReader::readText)
+        }.getOrDefault("")
+        val stderr = runCatching {
+            process.errorStream.bufferedReader().use(BufferedReader::readText)
+        }.getOrDefault("")
+        val exit = runCatching { process.waitFor() }.getOrElse { -3 }
+        return CommandResult(exit, stdout, stderr)
     }
 }

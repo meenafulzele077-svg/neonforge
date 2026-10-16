@@ -27,16 +27,15 @@ jobs:
         continue-on-error: true
         run: |
           {
-            mkdir -p /tmp/shizuku_api
-            curl -fsSL -o /tmp/shizuku_api/api.aar https://repo1.maven.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar || echo "CURL_FAILED"
-            cd /tmp/shizuku_api
-            unzip -o -q api.aar classes.jar || echo "UNZIP_FAILED"
-            echo "=== public surface: rikka.shizuku.Shizuku ==="
-            javap -classpath classes.jar rikka.shizuku.Shizuku || echo "JAVAP_FAILED"
-            echo "=== public surface: rikka.shizuku.ShizukuRemoteProcess ==="
-            javap -classpath classes.jar rikka.shizuku.ShizukuRemoteProcess || true
-            echo "=== IShizukuService process/shell methods ==="
-            javap -classpath classes.jar rikka.shizuku.IShizukuService | grep -iE "process|shell" || true
+            mkdir -p /tmp/shizuku_api/v12
+            echo "=== 13.1.5: newProcess visibility ==="
+            curl -fsSL -o /tmp/shizuku_api/api.aar https://repo1.maven.org/maven2/dev/rikka/shizuku/api/13.1.5/api-13.1.5.aar || echo "CURL_FAILED_13"
+            unzip -o -q /tmp/shizuku_api/api.aar classes.jar -d /tmp/shizuku_api
+            javap -classpath /tmp/shizuku_api/classes.jar rikka.shizuku.Shizuku | grep -iE "newProcess" || echo "13.1.5: NO PUBLIC OR PRIVATE newProcess MATCH"
+            echo "=== 12.2.0: newProcess visibility ==="
+            curl -fsSL -o /tmp/shizuku_api/api12.aar https://repo1.maven.org/maven2/dev/rikka/shizuku/api/12.2.0/api-12.2.0.aar || echo "CURL_FAILED_12"
+            unzip -o -q /tmp/shizuku_api/api12.aar classes.jar -d /tmp/shizuku_api/v12
+            javap -p -classpath /tmp/shizuku_api/v12/classes.jar rikka.shizuku.Shizuku | grep -iE "newProcess" || echo "12.2.0: NO newProcess MATCH"
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Run unit tests

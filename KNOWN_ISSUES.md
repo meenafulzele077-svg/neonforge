@@ -26,3 +26,12 @@
 - Owner authorized NEONFORGE manually via Shizuku > Application management (toggle ON): valid.
 - Fix shipped: privilege status refresh on every ON_RESUME + manual REFRESH STATUS button
   + per-state guidance text on the dashboard.
+
+## API version decision (evidence: CI javap summary, run of commit 4fdccb5)
+- api 13.1.5: Shizuku.newProcess NOT in public surface; ShizukuRemoteProcess ctors
+  package-private; IShizukuService has no process/shell methods. Public exec path in
+  13.1.5 = user service mechanism only.
+- Action: pinned dev.rikka.shizuku:{api,provider} to 12.2.0 (public newProcess generation).
+  Verification gates: CI compile + on-device READ DENSITY returning real numbers.
+- Fallback if 12.2.0 also hides newProcess: implement user-service mechanism or adopt
+  an externally documented method (owner-approved research path).
