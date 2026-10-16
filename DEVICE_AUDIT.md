@@ -31,3 +31,14 @@ Shizuku package NOT installed
 === PROBE C: debugging-related global settings (read-only) ===
 adb_wifi_enabled=cmd: Failure calling service settings: Failed transaction (2147483646)
 development_settings_enabled=cmd: Failure calling service settings: Failed transaction (2147483646)
+
+## Probe interpretation (Phase 1 close, 2026-10-16)
+- /system/bin/wm exists (33-byte wrapper) but from Termux both `wm` and `cmd window`
+  fail with "cmd: Can't find service: window" (service-manager/SELinux restriction on
+  untrusted_app). VERIFIED: Termux can neither read nor write display density.
+  All density operations must run through Shizuku (shell UID).
+- Shizuku: NOT installed at audit time. Owner installation + Wireless Debugging start required.
+- Global settings reads from Termux fail (Failed transaction 2147483646); wireless-debug
+  state must be confirmed in Settings UI or the Shizuku app.
+- Repository: https://github.com/meenafulzele077-svg/neonforge.git, branch main,
+  initial commit bc309b8 pushed successfully.
