@@ -23,16 +23,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.neonforge.launcher.data.NfSettings
 import com.neonforge.launcher.data.ProfileRepository
 import com.neonforge.launcher.data.SettingsRepository
 import com.neonforge.launcher.ui.navigation.NfRoutes
 import com.neonforge.launcher.ui.screens.DashboardScreen
+import com.neonforge.launcher.ui.screens.DiagnosticsScreen
 import com.neonforge.launcher.ui.screens.LibraryScreen
+import com.neonforge.launcher.ui.screens.ProfileEditorScreen
+import com.neonforge.launcher.ui.screens.SettingsScreen
 import com.neonforge.launcher.ui.theme.NeonForgeTheme
 import com.neonforge.launcher.ui.theme.NfMidnight
 import com.neonforge.launcher.ui.theme.NfSurface
@@ -110,26 +115,23 @@ fun NfRoot() {
                     navController.navigate(NfRoutes.profileEditor(pkg))
                 }
             }
-            composable(NfRoutes.PROFILE_EDITOR) {
-                PendingScreen("PROFILE EDITOR - Step 2-C pending. Data layer is ready.")
+            composable(
+                route = NfRoutes.PROFILE_EDITOR,
+                arguments = listOf(navArgument("packageName") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val pkg = backStackEntry.arguments?.getString("packageName") ?: ""
+                ProfileEditorScreen(
+                    packageName = pkg,
+                    profileRepo = profileRepo,
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(NfRoutes.SETTINGS) {
-                PendingScreen("SETTINGS SCREEN - Step 2-C pending. Settings repository is ready.")
+                SettingsScreen(settingsRepo = settingsRepo)
             }
             composable(NfRoutes.DIAGNOSTICS) {
-                PendingScreen("DIAGNOSTICS SCREEN - Step 2-C pending.")
+                DiagnosticsScreen()
             }
         }
-    }
-}
-
-@Composable
-fun PendingScreen(label: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
