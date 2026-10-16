@@ -3,24 +3,25 @@ package com.neonforge.launcher
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
@@ -32,6 +33,10 @@ import androidx.navigation.navArgument
 import com.neonforge.launcher.data.NfSettings
 import com.neonforge.launcher.data.ProfileRepository
 import com.neonforge.launcher.data.SettingsRepository
+import com.neonforge.launcher.density.DensityController
+import com.neonforge.launcher.density.OperationLog
+import com.neonforge.launcher.density.RecoveryJournalRepo
+import com.neonforge.launcher.shizuku.ShizukuBridge
 import com.neonforge.launcher.ui.navigation.NfRoutes
 import com.neonforge.launcher.ui.screens.DashboardScreen
 import com.neonforge.launcher.ui.screens.DiagnosticsScreen
@@ -41,6 +46,10 @@ import com.neonforge.launcher.ui.screens.SettingsScreen
 import com.neonforge.launcher.ui.theme.NeonForgeTheme
 import com.neonforge.launcher.ui.theme.NfMidnight
 import com.neonforge.launcher.ui.theme.NfSurface
+import kotlinx.coroutines.launch
+import rikka.shizuku.Shizuku
+
+enum class ShizukuUiState { NOT_INSTALLED, NOT_RUNNING, NOT_AUTHORIZED, READY }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,11 +67,51 @@ fun NfRoot() {
     val context = LocalContext.current.applicationContext
     val profileRepo = remember { ProfileRepository(context) }
     val settingsRepo = remember { SettingsRepository(context) }
+    val journalRepo = remember { RecoveryJournalRepo(context) }
+    val opLog = remember { OperationLog(context) }
+    val controller = remember { DensityController(journalRepo, opLog) }
+
     val profiles by profileRepo.profiles.collectAsState(initial = emptyList())
     val settings by settingsRepo.settings.collectAsState(initial = NfSettings())
+    val journal by journalRepo.journal.collectAsState(initial = null)
+    val session by controller.session.collectAsState()
+    val ops by opLog.records.collectAsState(initial = emptyList())
+
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
+    val scope = rememberCoroutineScope()
+
+    val shizukuInstalled = remember {
+        runCatching {
+            context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null
+        }.getOrDefault(false)
+    }
+    var binderAlive by remember { mutableStateOf(false) }
+    var permissionGranted by remember { mutableStateOf(false) }
+    var launchError by remember { mutableStateOf<String?>(null) }
+
+    val refreshShizuku: () -> Unit = {
+        binderAlive = ShizukuBridge.isBinderAlive()
+        permissionGranted = ShizukuBridge.isPermissionGranted()
+    }
+
+    LaunchedEffect(Unit) { refreshShizuku() }
+
+    DisposableEffect(Unit) {
+        val listener = Shizuku.OnRequestPermissionResultListener { code, _ ->
+            if (code == ShizukuBridge.PERMISSION_REQUEST_CODE) refreshShizuku()
+        }
+        ShizukuBridge.addPermissionListener(listener)
+        onDispose { ShizukuBridge.removePermissionListener(listener) }
+    }
+
+    val shizukuState = when {
+        !shizukuInstalled -> ShizukuUiState.NOT_INSTALLED
+        !binderAlive -> ShizukuUiState.NOT_RUNNING
+        !permissionGranted -> ShizukuUiState.NOT_AUTHORIZED
+        else -> ShizukuUiState.READY
+    }
 
     val selected = profiles.firstOrNull { it.packageName == settings.selectedPackage && it.enabled }
         ?: profiles.firstOrNull { it.enabled }
@@ -106,6 +155,48 @@ fun NfRoot() {
                 DashboardScreen(
                     profiles = profiles,
                     selected = selected,
+                    shizukuState = shizukuState,
+                    session = session,
+                    journal = journal,
+                    lastOp = ops.firstOrNull(),
+                    launchError = launchError,
+                    onReadDensity = {
+                        scope.launch {
+                            controller.readCurrent()
+                            refreshShizuku()
+                        }
+                    },
+                    onRequestPermission = { ShizukuBridge.requestPermission() },
+                    onLaunch = {
+                        selected?.let { p ->
+                            scope.launch {
+                                launchError = null
+                                val res = controller.startSession(
+                                    p.packageName,
+                                    p.displayName,
+                                    p.requestedDensity
+                                )
+                                if (res.isSuccess) {
+                                    val intent = context.packageManager.getLaunchIntentForPackage(p.packageName)
+                                    val started = intent != null &&
+                                        runCatching { context.startActivity(intent) }.isSuccess
+                                    if (!started) {
+                                        launchError = "Game launch intent failed after density apply. Restore from dashboard."
+                                        opLog.record("LAUNCH", -1, "intent failed for ${p.packageName}", false)
+                                    } else {
+                                        opLog.record("LAUNCH", 0, p.packageName, true)
+                                    }
+                                }
+                                refreshShizuku()
+                            }
+                        }
+                    },
+                    onRestore = {
+                        scope.launch {
+                            journal?.let { controller.restoreSession(it) }
+                            refreshShizuku()
+                        }
+                    },
                     onSelectGame = { navController.navigate(NfRoutes.LIBRARY) },
                     onOpenDiagnostics = { navController.navigate(NfRoutes.DIAGNOSTICS) }
                 )
@@ -130,7 +221,13 @@ fun NfRoot() {
                 SettingsScreen(settingsRepo = settingsRepo)
             }
             composable(NfRoutes.DIAGNOSTICS) {
-                DiagnosticsScreen()
+                DiagnosticsScreen(
+                    shizukuState = shizukuState,
+                    binderAlive = binderAlive,
+                    permissionGranted = permissionGranted,
+                    session = session,
+                    ops = ops
+                )
             }
         }
     }

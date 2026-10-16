@@ -8,15 +8,14 @@ data class CommandResult(val exitCode: Int, val stdout: String, val stderr: Stri
 
 /**
  * Single gateway for ALL privileged operations.
- * Status/permission methods below are verified public API in dev.rikka.shizuku:api:13.1.5
- * (compiler-verified: they produce no visibility errors).
+ * Status/permission methods below are compiler-verified public API in
+ * dev.rikka.shizuku:api:13.1.5.
  *
  * TEMPORARY HONEST STUB for command execution:
  * Shizuku.newProcess(String[], String[], String) is PRIVATE in 13.1.5
  * (verified compiler diagnostic: ShizukuBridge.kt:42:45, CI runs #6/#7).
- * runCommand() therefore returns an explicit FAILURE result until the CI javap
- * diagnostic reveals the supported public command-execution API.
- * It never pretends success (Section 5.2 / Section 11 compliance).
+ * runCommand() returns an explicit FAILURE result until the CI javap diagnostic
+ * reveals the supported public command-execution API. It never pretends success.
  */
 object ShizukuBridge {
 
